@@ -73,25 +73,22 @@
 #define VAR_LCD_UTM     0
 #define VAR_LCD_CTW6120 1
 
-/*
- * parse touch screen from bootargs; var_ts=ctw6120|reststive.
- * (default is reststive).
- */
-static int var_lcd_index = VAR_LCD_UTM;
 
-static int __init var_ts_type_setup(char *str)
-{
-	if (str && strcmp("ctw6120", str) == 0) {
-		var_lcd_index = VAR_LCD_CTW6120;
-	}
-
-	return 1;
-}
-__setup("var_ts_type=", var_ts_type_setup);
 
 
 /* Convert GPIO signal to GPIO pin number */
 #define GPIO_TO_PIN(bank, gpio) (32 * (bank) + (gpio))
+
+
+#define LCD_DVDD_EN 		GPIO_TO_PIN(1, 17)
+#define LCD_EN 			GPIO_TO_PIN(1, 24)
+#define LCD_AVDD_EN 		GPIO_TO_PIN(1, 22)
+#define LCD_VGH_EN 		GPIO_TO_PIN(1, 19)
+#define LCD_VGL_EN		GPIO_TO_PIN(1, 25)
+#define LCD_RESET		GPIO_TO_PIN(1, 23)
+
+#define CHG_EN			GPIO_TO_PIN(1, 26)
+
 
 #define NO_OF_MAC_ADDR		3
 static char am335x_mac_addr[NO_OF_MAC_ADDR][ETH_ALEN];
@@ -127,10 +124,63 @@ struct da8xx_lcdc_platform_data VAR_LCD_pdata = {
 	.type			= "VAR-WVGA",
 };
 
+void yaoyu_panel_power_ctrl (int state)
+{
+    printk("yaoyu_panel_power_ctrl state %d\n", state);
+    if (state)	
+    {
+        /*LCD Power on Sequence */
+        gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
+        gpio_direction_output(LCD_DVDD_EN, 1);
+
+        gpio_request(LCD_EN, "lcd_en");
+        gpio_direction_output(LCD_EN, 1);
+
+        gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
+        gpio_direction_output(LCD_AVDD_EN, 1);
+
+	gpio_request(LCD_VGL_EN, "lcd_vgl_en");
+        gpio_direction_output(LCD_VGL_EN, 1);
+
+        gpio_request(LCD_VGH_EN, "lcd_vgh_en");
+        gpio_direction_output(LCD_VGH_EN, 1);
+
+	gpio_request(LCD_RESET, "lcd_reset");
+        gpio_direction_output(LCD_RESET, 1);
+
+     }
+     else
+     {
+	/*LCD Power Off Sequence */
+
+	gpio_request(LCD_RESET, "lcd_reset");
+	gpio_direction_output(LCD_RESET, 0);
+
+	gpio_request(LCD_VGH_EN, "lcd_vgh_en");
+	gpio_direction_output(LCD_VGH_EN, 0);
+
+
+	gpio_request(LCD_VGL_EN, "lcd_vgl_en");
+	gpio_direction_output(LCD_VGL_EN, 0);
+
+
+	gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
+	gpio_direction_output(LCD_AVDD_EN, 0);
+
+
+	gpio_request(LCD_EN, "lcd_en");
+	gpio_direction_output(LCD_EN, 0);
+
+	gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
+	gpio_direction_output(LCD_DVDD_EN, 0);
+    }
+}
+
 struct da8xx_lcdc_platform_data VAR_LCD_CTW_pdata = {
 	.manu_name		= "Variscite",
 	.controller_data	= &lcd_cfg,
 	.type			= "VAR-WVGA-CTW",
+	.panel_power_ctrl = yaoyu_panel_power_ctrl,
 };
 
 /* TSc controller */
@@ -425,6 +475,75 @@ static struct gpio som_rev_gpios[] __initdata = {
 
 };
 
+
+/************************ MST3000 **********************************/
+
+
+static struct pinmux_config mst3000_keys_pin_mux[] = {
+    // POWER Key
+	{"spi0_d0.gpio0_3", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT},
+	{NULL, 0},
+};
+
+
+/* Configure GPIOs for power Key */
+static struct gpio_keys_button mst3000_keys_gpio_buttons[] = {
+    {
+		.code                   = KEY_POWER,
+		.gpio                   = GPIO_TO_PIN(0, 3),
+		.active_low             = true,
+		.desc                   = "power",
+		.type                   = EV_KEY,
+		.wakeup                 = 1,
+	},
+};
+
+static struct gpio_keys_platform_data mst3000_gpio_keys_info = {
+	.buttons        = mst3000_keys_gpio_buttons,
+	.nbuttons       = ARRAY_SIZE(mst3000_keys_gpio_buttons),
+};
+
+static struct platform_device mst3000_keys = {
+	.name   = "gpio-keys",
+	.id     = -1,
+	.dev    = {
+		.platform_data  = &mst3000_gpio_keys_info,
+	},
+};
+
+static void mst3000_keys_init(int evm_id, int profile)
+{
+	int err;
+
+	setup_pin_mux(mst3000_keys_pin_mux);
+	err = platform_device_register(&mst3000_keys);
+	if (err)
+		pr_err("failed to register power key device\n");
+}
+
+static struct platform_device mst3000_battery_charger = {
+        .name   = "mst3000_charger",
+        .id     = -1,
+};
+
+static void mst3000_battery_charger_init(int evm_id, int profile)
+{
+       int err;
+ 
+       err = platform_device_register(&mst3000_battery_charger);
+       if (err)
+               pr_err("failed to register battery charger\n");
+}
+
+
+
+/* battery ADC */
+static struct tsc_data am335x_battey_adc_data  = {
+	.wires  = 4,
+	.x_plate_resistance = 200,
+};
+
+
 int get_var_am33_som_rev(void)
 {
 	static int som_rev = -1;
@@ -534,9 +653,7 @@ static void haptics_init(void)
 
 static int __init pwm_backlight_init(void)
 {
-	if (var_lcd_index == VAR_LCD_CTW6120)
-		am335x_backlight_data.lth_brightness = 59;
-
+	am335x_backlight_data.lth_brightness = 59;
 	platform_device_register(&am335x_backlight);
 
 	return 0;
@@ -590,11 +707,8 @@ static void lcdc_init(void)
 {
 	struct da8xx_lcdc_platform_data* plcdc_data;
 
-	if (var_lcd_index == VAR_LCD_CTW6120)
-		plcdc_data = &VAR_LCD_CTW_pdata;
-	else
-		plcdc_data = &VAR_LCD_pdata;
-
+	plcdc_data = &VAR_LCD_CTW_pdata;
+	
 	setup_pin_mux(lcdc_pin_mux);
 
 	if (conf_disp_pll(300000000)) {
@@ -1270,13 +1384,25 @@ static void __init am33xx_cpuidle_init(void)
 }
 
 #ifdef CONFIG_ANDROID
-static void sgx_init()
+static void sgx_init(void)
 {
 	if (omap3_has_sgx()) {
 		am33xx_gpu_init();
 	}
 }
 #endif
+
+
+static void setup_mst3000(void)
+{
+	printk("setup_mst3000 \n");
+	mst3000_keys_init(0, 0);
+    mst3000_battery_charger_init(0, 0);
+    
+    gpio_request(CHG_EN, "charger_enable");
+	gpio_direction_output(CHG_EN, 0);
+
+}
 
 static void __init var_am335x_som_init(void)
 {
@@ -1301,7 +1427,7 @@ static void __init var_am335x_som_init(void)
 	mfd_tscadc_init();
 	mcasp0_init();
 	rmii1_init();
-	rgmii2_init();
+	//rgmii2_init();
 	ethernet_init();
 	i2c1_init();
 #ifdef CONFIG_ANDROID
@@ -1317,6 +1443,8 @@ static void __init var_am335x_som_init(void)
 	/* Create an alias for gfx/sgx clock */
 	if (clk_add_alias("sgx_ck", NULL, "gfx_fclk", NULL))
 		pr_warn("failed to create an alias: gfx_fclk --> sgx_ck\n");
+
+	setup_mst3000();
 }
 
 static void __init var_am335x_som_map_io(void)
