@@ -87,6 +87,8 @@
 #define LCD_VGL_EN		GPIO_TO_PIN(1, 25)
 #define LCD_RESET		GPIO_TO_PIN(1, 23)
 
+#define VBL_EN			GPIO_TO_PIN(1, 21)
+
 #define CHG_EN			GPIO_TO_PIN(1, 26)
 
 
@@ -126,54 +128,58 @@ struct da8xx_lcdc_platform_data VAR_LCD_pdata = {
 
 void yaoyu_panel_power_ctrl (int state)
 {
-    printk("yaoyu_panel_power_ctrl state %d\n", state);
-    if (state)	
-    {
-        /*LCD Power on Sequence */
-        gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
-        gpio_direction_output(LCD_DVDD_EN, 1);
+	printk("yaoyu_panel_power_ctrl state %d\n", state);
+	if (state)
+	{
+		/*LCD Power on Sequence */
+		gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
+		gpio_direction_output(LCD_DVDD_EN, 1);
 
-        gpio_request(LCD_EN, "lcd_en");
-        gpio_direction_output(LCD_EN, 1);
+		gpio_request(LCD_EN, "lcd_en");
+		gpio_direction_output(LCD_EN, 1);
 
-        gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
-        gpio_direction_output(LCD_AVDD_EN, 1);
+		gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
+		gpio_direction_output(LCD_AVDD_EN, 1);
 
-	gpio_request(LCD_VGL_EN, "lcd_vgl_en");
-        gpio_direction_output(LCD_VGL_EN, 1);
+		gpio_request(LCD_VGL_EN, "lcd_vgl_en");
+		gpio_direction_output(LCD_VGL_EN, 1);
 
-        gpio_request(LCD_VGH_EN, "lcd_vgh_en");
-        gpio_direction_output(LCD_VGH_EN, 1);
+		gpio_request(LCD_VGH_EN, "lcd_vgh_en");
+		gpio_direction_output(LCD_VGH_EN, 1);
 
-	gpio_request(LCD_RESET, "lcd_reset");
-        gpio_direction_output(LCD_RESET, 1);
+		gpio_request(LCD_RESET, "lcd_reset");
+		gpio_direction_output(LCD_RESET, 1);
 
-     }
-     else
-     {
-	/*LCD Power Off Sequence */
+		/* Temporary - while PWM backlight is implemented */
+		gpio_request(VBL_EN, "vbl_en");
+		gpio_direction_output(VBL_EN, 1);
 
-	gpio_request(LCD_RESET, "lcd_reset");
-	gpio_direction_output(LCD_RESET, 0);
+	}
+	else
+	{
+		/*LCD Power Off Sequence */
 
-	gpio_request(LCD_VGH_EN, "lcd_vgh_en");
-	gpio_direction_output(LCD_VGH_EN, 0);
+		gpio_request(LCD_RESET, "lcd_reset");
+		gpio_direction_output(LCD_RESET, 0);
 
-
-	gpio_request(LCD_VGL_EN, "lcd_vgl_en");
-	gpio_direction_output(LCD_VGL_EN, 0);
-
-
-	gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
-	gpio_direction_output(LCD_AVDD_EN, 0);
+		gpio_request(LCD_VGH_EN, "lcd_vgh_en");
+		gpio_direction_output(LCD_VGH_EN, 0);
 
 
-	gpio_request(LCD_EN, "lcd_en");
-	gpio_direction_output(LCD_EN, 0);
+		gpio_request(LCD_VGL_EN, "lcd_vgl_en");
+		gpio_direction_output(LCD_VGL_EN, 0);
 
-	gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
-	gpio_direction_output(LCD_DVDD_EN, 0);
-    }
+
+		gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
+		gpio_direction_output(LCD_AVDD_EN, 0);
+
+
+		gpio_request(LCD_EN, "lcd_en");
+		gpio_direction_output(LCD_EN, 0);
+
+		gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
+		gpio_direction_output(LCD_DVDD_EN, 0);
+	}
 }
 
 struct da8xx_lcdc_platform_data VAR_LCD_CTW_pdata = {
@@ -181,34 +187,6 @@ struct da8xx_lcdc_platform_data VAR_LCD_CTW_pdata = {
 	.controller_data	= &lcd_cfg,
 	.type			= "VAR-WVGA-CTW",
 	.panel_power_ctrl = yaoyu_panel_power_ctrl,
-};
-
-/* TSc controller */
-static struct tsc_data am335x_touchscreen_data  = {
-	.wires  = 4,
-	.x_plate_resistance = 200,
-	.steps_to_configure = 5,
-#ifdef CONFIG_ANDROID
-	.x = {
-		.min = 0x76,
-		.max = 0xF86,
-		.inverted = 0,
-	},
-	.y = {
-		.min = 0x127,
-		.max = 0xF46,
-		.inverted = 0,
-	},
-#endif /* CONFIG_ANDROID */
-};
-
-static struct adc_data am335x_adc_data = {
-	.adc_channels = 4,
-};
-
-static struct mfd_tscadc_board tscadc = {
-	.tsc_init = &am335x_touchscreen_data,
-	.adc_init = &am335x_adc_data,
 };
 
 /* Audio */
@@ -298,12 +276,14 @@ static struct pinmux_config uart3_pin_mux[] = {
 
 #ifdef CONFIG_ANDROID
 static struct pinmux_config haptics_pin_mux[] = {
-	{"spi0_sclk.ehrpwm0A", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT},
+	// {"spi0_sclk.ehrpwm0A", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT}, whenever we have PWM available
+	{"gpmc_a5.gpio1_21", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT},
 	{NULL, 0},
 };
 #else
 static struct pinmux_config gpio_backlight_pin_mux[] = {
-	{"spi0_sclk.gpio0_2", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT},
+	// {"spi0_sclk.gpio0_2", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT}, whenever we have PWM available
+	{"gpmc_a5.gpio1_21", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT},
 	{NULL, 0},
 };
 #endif
@@ -352,6 +332,16 @@ static struct pinmux_config lcdc_pin_mux[] = {
 	{"lcd_hsync.lcd_hsync",		OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT},
 	{"lcd_pclk.lcd_pclk",		OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT},
 	{"lcd_ac_bias_en.lcd_ac_bias_en", OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT},
+
+
+	{"gpmc_a1.gpio1_17", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+	{"gpmc_a6.gpio1_22", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+	{"gpmc_a9.gpio1_25", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+	{"gpmc_a3.gpio1_19", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+	{"gpmc_a8.gpio1_24", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+	{"gpmc_a5.gpio1_21", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+	{"gpmc_a7.gpio1_23", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+
 	{NULL, 0},
 };
 
@@ -430,6 +420,15 @@ static struct pinmux_config i2c1_pin_mux[] = {
 	{NULL, 0},
 };
 
+/* I2C0 */
+static struct pinmux_config i2c0_pin_mux[] = {
+	{"i2c0_sda.i2c0_sda",    OMAP_MUX_MODE0 | AM33XX_SLEWCTRL_SLOW |
+			AM33XX_INPUT_EN | AM33XX_PIN_OUTPUT},
+	{"i2c0_scl.i2c0_scl",   OMAP_MUX_MODE0 | AM33XX_SLEWCTRL_SLOW |
+			AM33XX_INPUT_EN | AM33XX_PIN_OUTPUT},
+	{NULL, 0},
+};
+
 /* Module pin mux for mcasp0 */
 static struct pinmux_config mcasp0_pin_mux[] = {
 	{"mcasp0_aclkx.mcasp0_aclkx", OMAP_MUX_MODE0 | AM33XX_PIN_INPUT_PULLDOWN},
@@ -481,7 +480,7 @@ static struct gpio som_rev_gpios[] __initdata = {
 
 static struct pinmux_config mst3000_keys_pin_mux[] = {
     // POWER Key
-	{"spi0_d0.gpio0_3", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT},
+	{"spi0_sclk.gpio0_2", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT},
 	{NULL, 0},
 };
 
@@ -490,7 +489,7 @@ static struct pinmux_config mst3000_keys_pin_mux[] = {
 static struct gpio_keys_button mst3000_keys_gpio_buttons[] = {
     {
 		.code                   = KEY_POWER,
-		.gpio                   = GPIO_TO_PIN(0, 3),
+		.gpio                   = GPIO_TO_PIN(0, 2),
 		.active_low             = true,
 		.desc                   = "power",
 		.type                   = EV_KEY,
@@ -658,7 +657,7 @@ static int __init pwm_backlight_init(void)
 
 	return 0;
 }
-late_initcall(pwm_backlight_init);
+//late_initcall(pwm_backlight_init);
 #else
 
 #define VAR_SOM_BACKLIGHT_GPIO GPIO_TO_PIN(0, 2)
@@ -725,14 +724,7 @@ static void lcdc_init(void)
 	return;
 }
 
-static void mfd_tscadc_init(void)
-{
-	int err;
 
-	err = am33xx_register_mfd_tscadc(&tscadc);
-	if (err)
-		pr_err("failed to register touchscreen device\n");
-}
 
 static void uart_init(void)
 {
@@ -1024,7 +1016,7 @@ static int wl12xx_set_power(struct device *dev, int slot, int on, int vdd)
 	return 0;
 }
 
-static void wl12xx_init(void)
+static void __init wl12xx_init(void)
 {
 	struct device *dev;
 	struct omap_mmc_platform_data *pdata;
@@ -1067,7 +1059,7 @@ out:
 	return;
 }
 
-static void mmc0_init(void)
+static void __init mmc0_init(void)
 {
 	setup_pin_mux(mmc0_pin_mux);
 
@@ -1310,22 +1302,28 @@ static struct omap_musb_board_data musb_board_data = {
 #define VAR_SOM_TSC_CTW_IRQ_GPIO 	GPIO_TO_PIN(0, 3)
 
 static struct i2c_board_info __initdata var_som_i2c1_boardinfo[] = {
-	{
-		I2C_BOARD_INFO("tps65910", TPS65910_I2C_ID1),
-		.platform_data  = &am335x_tps65910_info,
-	},
-	{
-		I2C_BOARD_INFO("tlv320aic3x", 0x1b),
-	},
-	{
-#ifdef CONFIG_ANDROID
-		I2C_BOARD_INFO("ctw6120-mt", 0x38),
-#else
-		I2C_BOARD_INFO("ctw6120", 0x38),
-#endif
-		.flags = I2C_CLIENT_WAKE,
-		.irq = OMAP_GPIO_IRQ(VAR_SOM_TSC_CTW_IRQ_GPIO),
-	},
+		{
+				I2C_BOARD_INFO("tps65910", TPS65910_I2C_ID1),
+				.platform_data  = &am335x_tps65910_info,
+		},
+		{
+				I2C_BOARD_INFO("tlv320aic3x", 0x1b),
+		},
+		{
+				/* bq27421 Gas Gauge */
+				I2C_BOARD_INFO("bq274xx", 0x55),
+		},
+		{
+				.flags = I2C_CLIENT_WAKE,
+				.irq = OMAP_GPIO_IRQ(VAR_SOM_TSC_CTW_IRQ_GPIO),
+		},
+};
+
+static struct i2c_board_info __initdata var_som_i2c0_boardinfo[] = {
+		{
+				/* SSD2543 Touch panel */
+				I2C_BOARD_INFO("ssd2543-ts", 0x48),
+		},
 };
 
 static void i2c1_init(void)
@@ -1334,6 +1332,15 @@ static void i2c1_init(void)
 
 	omap_register_i2c_bus(2, 100, var_som_i2c1_boardinfo,
 			ARRAY_SIZE(var_som_i2c1_boardinfo));
+	return;
+}
+
+static void i2c0_init(void)
+{
+	setup_pin_mux(i2c0_pin_mux);
+
+	omap_register_i2c_bus(1, 100, var_som_i2c0_boardinfo,
+			ARRAY_SIZE(var_som_i2c0_boardinfo));
 	return;
 }
 
@@ -1424,14 +1431,15 @@ static void __init var_am335x_som_init(void)
 	wl12xx_init();
 	som_nand_init();
 	lcdc_init();
-	mfd_tscadc_init();
+	//mfd_tscadc_init();
 	mcasp0_init();
 	rmii1_init();
 	//rgmii2_init();
 	ethernet_init();
 	i2c1_init();
+	i2c0_init();
 #ifdef CONFIG_ANDROID
-	haptics_init(); /* use by PWM backlight */
+	//haptics_init(); /* use by PWM backlight */
 	sgx_init();
 #endif	
 	usb_musb_init(&musb_board_data);
