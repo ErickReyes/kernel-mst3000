@@ -238,8 +238,6 @@ static void ssd253x_ts_work(struct work_struct *work)
 			xpos = ((FingerInfo>>4)&0xF00)|((FingerInfo>>24)&0xFF);
 			width= (FingerInfo&0x00FF);
 
-			printk("Finger %d x = %d y = %d w = %d\n", i + 1, xpos, ypos, width);
-
 			if(xpos!=0xFFF)
 			{
 				ssl_priv->FingerDetect++;
@@ -247,8 +245,6 @@ static void ssd253x_ts_work(struct work_struct *work)
 			}
 			else 
 			{
-				// This part is to avoid asyn problem when the finger leaves
-//				printk("		ssd253x_ts_work: Correct %x\n",EventStatus);
 				EventStatus=EventStatus&~(1<<i);
 				clrFlag=1;
 			}
