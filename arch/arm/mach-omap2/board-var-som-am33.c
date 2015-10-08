@@ -80,16 +80,18 @@
 #define GPIO_TO_PIN(bank, gpio) (32 * (bank) + (gpio))
 
 
-#define LCD_DVDD_EN 		GPIO_TO_PIN(1, 17)
+#define LCD_DVDD_EN 	GPIO_TO_PIN(1, 17)
 #define LCD_EN 			GPIO_TO_PIN(1, 24)
-#define LCD_AVDD_EN 		GPIO_TO_PIN(1, 22)
+#define LCD_AVDD_EN 	GPIO_TO_PIN(1, 22)
 #define LCD_VGH_EN 		GPIO_TO_PIN(1, 19)
 #define LCD_VGL_EN		GPIO_TO_PIN(1, 25)
 #define LCD_RESET		GPIO_TO_PIN(1, 23)
 
-#define VBL_EN			GPIO_TO_PIN(1, 21)
+#define TOUCH_RESET		GPIO_TO_PIN(1, 18)
 
 #define CHG_EN			GPIO_TO_PIN(1, 26)
+
+#define PWR_CNTRL		GPIO_TO_PIN(3, 7)
 
 
 #define NO_OF_MAC_ADDR		3
@@ -149,10 +151,6 @@ void yaoyu_panel_power_ctrl (int state)
 
 		gpio_request(LCD_RESET, "lcd_reset");
 		gpio_direction_output(LCD_RESET, 1);
-
-		/* Temporary - while PWM backlight is implemented */
-		gpio_request(VBL_EN, "vbl_en");
-		gpio_direction_output(VBL_EN, 1);
 
 	}
 	else
@@ -276,14 +274,12 @@ static struct pinmux_config uart3_pin_mux[] = {
 
 #ifdef CONFIG_ANDROID
 static struct pinmux_config haptics_pin_mux[] = {
-	// {"spi0_sclk.ehrpwm0A", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT}, whenever we have PWM available
-	{"gpmc_a5.gpio1_21", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT},
+	{"spi0_sclk.ehrpwm0A", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT},
 	{NULL, 0},
 };
 #else
 static struct pinmux_config gpio_backlight_pin_mux[] = {
-	// {"spi0_sclk.gpio0_2", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT}, whenever we have PWM available
-	{"gpmc_a5.gpio1_21", OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT},
+	{"spi0_sclk.gpio0_2", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT},
 	{NULL, 0},
 };
 #endif
@@ -339,8 +335,10 @@ static struct pinmux_config lcdc_pin_mux[] = {
 	{"gpmc_a9.gpio1_25", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
 	{"gpmc_a3.gpio1_19", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
 	{"gpmc_a8.gpio1_24", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
-	{"gpmc_a5.gpio1_21", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
 	{"gpmc_a7.gpio1_23", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
+
+	/* Touch panel reset signal */
+	{"gpmc_a2.gpio1_18", OMAP_MUX_MODE7 | AM33XX_PIN_OUTPUT_PULLUP},
 
 	{NULL, 0},
 };
@@ -451,6 +449,23 @@ static struct pinmux_config mmc0_pin_mux[] = {
 	{NULL, 0},
 };
 
+/* Module pin mux for battery charging and monitoring */
+
+static struct pinmux_config mst3000_battery_pinmux[] = {
+		{"gpmc_a11.gpio1_27", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT_PULLUP}, // Charging status
+		{"gpmc_clk.gpio2_1", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT_PULLUP}, // AC power status
+		{NULL, 0},
+};
+
+/* Module pin mux for MST3000 sub-cpu */
+static struct pinmux_config mst3000_subcpu_pinmux[] = {
+		{"gpmc_a5.gpio1_21", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT_PULLUP}, // Sub-CPU reset signal
+		{"gpmc_a0.gpio1_16", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT_PULLUP}, // Sub-CPU ROM ISP signal
+		{"mcasp0_ahclkr.gpio3_17", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT_PULLUP}, // Sub-CPU custom ISP signal
+		{NULL, 0},
+};
+
+
 /*
 * @pin_mux - single module pin-mux structure which defines pin-mux
 *			details for all its pins.
@@ -479,8 +494,10 @@ static struct gpio som_rev_gpios[] __initdata = {
 
 
 static struct pinmux_config mst3000_keys_pin_mux[] = {
-    // POWER Key
-	{"spi0_sclk.gpio0_2", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT},
+    // Power Key
+	{"spi0_d0.gpio0_3", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT},
+	// Power control signal
+	{"emu0.gpio3_7", OMAP_MUX_MODE7 | AM33XX_PIN_INPUT_PULLUP},
 	{NULL, 0},
 };
 
@@ -489,7 +506,7 @@ static struct pinmux_config mst3000_keys_pin_mux[] = {
 static struct gpio_keys_button mst3000_keys_gpio_buttons[] = {
     {
 		.code                   = KEY_POWER,
-		.gpio                   = GPIO_TO_PIN(0, 2),
+		.gpio                   = GPIO_TO_PIN(0, 3),
 		.active_low             = true,
 		.desc                   = "power",
 		.type                   = EV_KEY,
@@ -537,9 +554,12 @@ static void mst3000_battery_charger_init(int evm_id, int profile)
 
 
 /* battery ADC */
-static struct tsc_data am335x_battey_adc_data  = {
-	.wires  = 4,
-	.x_plate_resistance = 200,
+static struct adc_data am335x_battey_adc_data  = {
+	.adc_channels  = 4,
+};
+
+static struct mfd_tscadc_board battery_tscadc = {
+	.adc_init = &am335x_battey_adc_data,
 };
 
 
@@ -589,6 +609,9 @@ static struct wl12xx_platform_data var_som_am33_wlan_data = {
 	.wlan_enable_gpio = VAR_SOM_WLAN_PMENA_GPIO,
 	.bt_enable_gpio = VAR_SOM_BT_PMENA_GPIO,
 	.board_ref_clock = WL12XX_REFCLOCK_26, /* 26Mhz */
+#ifdef CONFIG_MACH_AM335XEVM_WILINK8
+        .board_tcxo_clock = WL12XX_TCXOCLOCK_26,
+#endif
 };
 
 /* Module pin mux for wlan and bluetooth */
@@ -657,7 +680,7 @@ static int __init pwm_backlight_init(void)
 
 	return 0;
 }
-//late_initcall(pwm_backlight_init);
+late_initcall(pwm_backlight_init);
 #else
 
 #define VAR_SOM_BACKLIGHT_GPIO GPIO_TO_PIN(0, 2)
@@ -1400,14 +1423,44 @@ static void sgx_init(void)
 #endif
 
 
+static struct pinmux_config bat_adc_pin_mux[] = {
+		{"ain5.ain5",           OMAP_MUX_MODE0 | AM33XX_INPUT_EN},
+		{"vrefp.vrefp",         OMAP_MUX_MODE0 | AM33XX_INPUT_EN},
+		{"vrefn.vrefn",         OMAP_MUX_MODE0 | AM33XX_INPUT_EN},
+		{NULL, 0},
+};
+
+static void bat_adc_init(void)
+{
+	int err;
+
+	setup_pin_mux(bat_adc_pin_mux);
+	err = am33xx_register_mfd_tscadc(&battery_tscadc);
+	if (err)
+		pr_err("failed to register battery adc device\n");
+}
+
 static void setup_mst3000(void)
 {
 	printk("setup_mst3000 \n");
+	setup_pin_mux(mst3000_battery_pinmux);
+	setup_pin_mux(mst3000_subcpu_pinmux);
 	mst3000_keys_init(0, 0);
     mst3000_battery_charger_init(0, 0);
     
+    bat_adc_init();
+
     gpio_request(CHG_EN, "charger_enable");
 	gpio_direction_output(CHG_EN, 0);
+
+	gpio_request(TOUCH_RESET, "touch_reset");
+	gpio_direction_output(TOUCH_RESET, 1);
+
+}
+
+static void mst3000_poweroff(void)
+{
+	gpio_direction_output(PWR_CNTRL, 0);
 
 }
 
@@ -1415,6 +1468,10 @@ static void __init var_am335x_som_init(void)
 {
 	am33xx_cpuidle_init();
 	am33xx_mux_init(board_mux);
+
+	gpio_request(PWR_CNTRL, "power_control");
+	gpio_direction_output(PWR_CNTRL, 1);
+
 
 	uart_init();
 	printk ("Variscite AM33 SOM revision %s detected\n",
@@ -1439,7 +1496,7 @@ static void __init var_am335x_som_init(void)
 	i2c1_init();
 	i2c0_init();
 #ifdef CONFIG_ANDROID
-	//haptics_init(); /* use by PWM backlight */
+	haptics_init(); /* use by PWM backlight */
 	sgx_init();
 #endif	
 	usb_musb_init(&musb_board_data);
@@ -1453,6 +1510,8 @@ static void __init var_am335x_som_init(void)
 		pr_warn("failed to create an alias: gfx_fclk --> sgx_ck\n");
 
 	setup_mst3000();
+
+	pm_power_off = mst3000_poweroff;
 }
 
 static void __init var_am335x_som_map_io(void)
