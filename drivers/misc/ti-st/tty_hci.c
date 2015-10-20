@@ -133,7 +133,7 @@ static struct st_proto_s ti_st_proto[MAX_BT_CHNL_IDS] = {
  *  Returns  0 -  on success
  *           else suitable error code
  */
-int hci_tty_open(struct inode *inod, struct file *file)
+static int hci_tty_open(struct inode *inod, struct file *file)
 {
 	int i = 0, err = 0;
 	unsigned long timeleft;
@@ -166,7 +166,7 @@ int hci_tty_open(struct inode *inod, struct file *file)
 
 		if (err != -EINPROGRESS) {
 			pr_err("st_register failed %d", err);
-			return err;
+			goto error;
 		}
 
 		/* ST is busy with either protocol
@@ -181,7 +181,8 @@ int hci_tty_open(struct inode *inod, struct file *file)
 			pr_err("Timeout(%d sec),didn't get reg "
 					"completion signal from ST",
 					BT_REGISTER_TIMEOUT / 1000);
-			return -ETIMEDOUT;
+			err = -ETIMEDOUT;
+			goto error;
 		}
 
 		/* Is ST registration callback
@@ -189,7 +190,8 @@ int hci_tty_open(struct inode *inod, struct file *file)
 		if (hst->reg_status != 0) {
 			pr_err("ST registration completed with invalid "
 					"status %d", hst->reg_status);
-			return -EAGAIN;
+			err = -EAGAIN;
+			goto error;
 		}
 
 done:
@@ -212,6 +214,10 @@ done:
 	init_waitqueue_head(&hst->data_q);
 
 	return 0;
+
+error:
+	kfree(hst);
+	return err;
 }
 
 /** hci_tty_release Function
@@ -223,7 +229,7 @@ done:
  *  Returns  0 -  on success
  *           else suitable error code
  */
-int hci_tty_release(struct inode *inod, struct file *file)
+static int hci_tty_release(struct inode *inod, struct file *file)
 {
 	int err, i;
 	struct ti_st *hst = file->private_data;
@@ -253,7 +259,7 @@ int hci_tty_release(struct inode *inod, struct file *file)
  *  Returns  Size of packet received -  on success
  *           else suitable error code
  */
-ssize_t hci_tty_read(struct file *file, char __user *data, size_t size,
+static ssize_t hci_tty_read(struct file *file, char __user *data, size_t size,
 		loff_t *offset)
 {
 	int len = 0, tout;
@@ -337,7 +343,7 @@ ssize_t hci_tty_read(struct file *file, char __user *data, size_t size,
  *  Returns  Size of packet on success
  *           else suitable error code
  */
-ssize_t hci_tty_write(struct file *file, const char __user *data,
+static ssize_t hci_tty_write(struct file *file, const char __user *data,
 		size_t size, loff_t *offset)
 {
 	struct ti_st *hst = file->private_data;
@@ -391,7 +397,7 @@ static long hci_tty_ioctl(struct file *file,
 		unsigned int cmd, unsigned long arg)
 {
 	struct sk_buff *skb = NULL;
-	int		retCode = 0;
+	int		retcode = 0;
 	struct ti_st	*hst;
 
 	pr_debug("inside %s (%p, %u, %lx)", __func__, file, cmd, arg);
@@ -423,11 +429,11 @@ static long hci_tty_ioctl(struct file *file,
 		break;
 	default:
 		pr_debug("Un-Identified IOCTL %d", cmd);
-		retCode = 0;
-	break;
+		retcode = 0;
+		break;
 	}
 
-	return retCode;
+	return retcode;
 }
 
 /** hci_tty_poll Function
@@ -492,8 +498,8 @@ static int __init hci_tty_init(void)
 	/* Expose the device DEVICE_NAME to user space
 	 * And obtain the major number for the device
 	 */
-	hci_tty_major = register_chrdev(0, DEVICE_NAME, \
-			&hci_tty_chrdev_ops);
+	hci_tty_major = register_chrdev(0, DEVICE_NAME, &hci_tty_chrdev_ops);
+
 	if (0 > hci_tty_major) {
 		pr_err("Error when registering to char dev");
 		return hci_tty_major;

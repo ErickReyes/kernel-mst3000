@@ -30,17 +30,19 @@
 
 #include <linux/ti_wilink_st.h>
 
+extern void st_kim_recv(void *, const unsigned char *, long);
+void st_int_recv(void *, const unsigned char *, long);
 /* function pointer pointing to either,
  * st_kim_recv during registration to receive fw download responses
  * st_int_recv after registration to receive proto stack responses
  */
-void (*st_recv) (void*, const unsigned char*, long);
+static void (*st_recv) (void *, const unsigned char *, long);
 
 /********************************************************************/
 static void add_channel_to_table(struct st_data_s *st_gdata,
 		struct st_proto_s *new_proto)
 {
-	pr_debug("%s: id %d\n", __func__, new_proto->chnl_id);
+	pr_info("%s: id %d\n", __func__, new_proto->chnl_id);
 	/* list now has the channel id as index itself */
 	st_gdata->list[new_proto->chnl_id] = new_proto;
 	st_gdata->is_registered[new_proto->chnl_id] = true;
@@ -49,7 +51,7 @@ static void add_channel_to_table(struct st_data_s *st_gdata,
 static void remove_channel_from_table(struct st_data_s *st_gdata,
 		struct st_proto_s *proto)
 {
-	pr_debug("%s: id %d\n", __func__, proto->chnl_id);
+	pr_info("%s: id %d\n", __func__, proto->chnl_id);
 /*	st_gdata->list[proto->chnl_id] = NULL; */
 	st_gdata->is_registered[proto->chnl_id] = false;
 }
@@ -100,7 +102,7 @@ int st_int_write(struct st_data_s *st_gdata,
  * push the skb received to relevant
  * protocol stacks
  */
-void st_send_frame(unsigned char chnl_id, struct st_data_s *st_gdata)
+static void st_send_frame(unsigned char chnl_id, struct st_data_s *st_gdata)
 {
 	pr_debug(" %s(prot:%d) ", __func__, chnl_id);
 
@@ -137,18 +139,20 @@ void st_send_frame(unsigned char chnl_id, struct st_data_s *st_gdata)
  * st_reg_complete -
  * to call registration complete callbacks
  * of all protocol stack drivers
+ * This function is being called with spin lock held, protocol drivers are
+ * only expected to complete their waits and do nothing more than that.
  */
-void st_reg_complete(struct st_data_s *st_gdata, char err)
+static void st_reg_complete(struct st_data_s *st_gdata, char err)
 {
 	unsigned char i = 0;
-	pr_debug(" %s ", __func__);
+	pr_info(" %s ", __func__);
 	for (i = 0; i < ST_MAX_CHANNELS; i++) {
 		if (likely(st_gdata != NULL &&
 			st_gdata->is_registered[i] == true &&
 				st_gdata->list[i]->reg_complete_cb != NULL)) {
 			st_gdata->list[i]->reg_complete_cb
 				(st_gdata->list[i]->priv_data, err);
-			pr_debug("protocol %d's cb sent %d\n", i, err);
+			pr_info("protocol %d's cb sent %d\n", i, err);
 			if (err) { /* cleanup registered protocol */
 				st_gdata->protos_registered--;
 				st_gdata->is_registered[i] = false;
@@ -338,15 +342,33 @@ void st_int_recv(void *disc_data,
 			/* Unknow packet? */
 		default:
 			type = *ptr;
-			if (st_gdata->list[type] == NULL) {
-				pr_err("chip/interface misbehavior dropping"
-					" frame starting with 0x%02x", type);
-				goto done;
 
+			/* Default case means non-HCILL packets,
+			 * possibilities are packets for:
+			 * (a) valid protocol -  Supported Protocols within
+			 *     the ST_MAX_CHANNELS.
+			 * (b) registered protocol - Checked by
+			 *     "st_gdata->list[type] == NULL)" are supported
+			 *     protocols only.
+			 *  Rules out any invalid protocol and
+			 *  unregistered protocols with channel ID < 16.
+			 */
+
+			if ((type >= ST_MAX_CHANNELS) ||
+					(st_gdata->list[type] == NULL)) {
+				pr_err("chip/interface misbehavior: "
+						"dropping frame starting "
+						"with 0x%02x\n", type);
+				goto done;
 			}
 			st_gdata->rx_skb = alloc_skb(
 					st_gdata->list[type]->max_frame_size,
 					GFP_ATOMIC);
+			if (st_gdata->rx_skb == NULL) {
+				pr_err("out of memory: dropping\n");
+				goto done;
+			}
+
 			skb_reserve(st_gdata->rx_skb,
 					st_gdata->list[type]->reserve);
 			/* next 2 required for BT only */
@@ -372,7 +394,7 @@ done:
  *	completely, return that skb which has the pending data.
  *	In normal cases, return top of txq.
  */
-struct sk_buff *st_int_dequeue(struct st_data_s *st_gdata)
+static struct sk_buff *st_int_dequeue(struct st_data_s *st_gdata)
 {
 	struct sk_buff *returning_skb;
 
@@ -394,7 +416,7 @@ struct sk_buff *st_int_dequeue(struct st_data_s *st_gdata)
  *	txq and waitq needs protection since the other contexts
  *	may be sending data, waking up chip.
  */
-void st_int_enqueue(struct st_data_s *st_gdata, struct sk_buff *skb)
+static void st_int_enqueue(struct st_data_s *st_gdata, struct sk_buff *skb)
 {
 	unsigned long flags = 0;
 
@@ -502,7 +524,6 @@ long st_register(struct st_proto_s *new_proto)
 	unsigned long flags = 0;
 
 	st_kim_ref(&st_gdata, 0);
-	pr_debug("%s(%d) ", __func__, new_proto->chnl_id);
 	if (st_gdata == NULL || new_proto == NULL || new_proto->recv == NULL
 	    || new_proto->reg_complete_cb == NULL) {
 		pr_err("gdata/new_proto/recv or reg_complete_cb not ready");
@@ -534,15 +555,16 @@ long st_register(struct st_proto_s *new_proto)
 		spin_unlock_irqrestore(&st_gdata->lock, flags);
 		return -EINPROGRESS;
 	} else if (st_gdata->protos_registered == ST_EMPTY) {
-		pr_debug(" chnl_id list empty :%d ", new_proto->chnl_id);
+		pr_info(" chnl_id list empty :%d ", new_proto->chnl_id);
 		set_bit(ST_REG_IN_PROGRESS, &st_gdata->st_state);
 		st_recv = st_kim_recv;
+
+		/* enable the ST LL - to set default chip state */
+		st_ll_enable(st_gdata);
 
 		/* release lock previously held - re-locked below */
 		spin_unlock_irqrestore(&st_gdata->lock, flags);
 
-		/* enable the ST LL - to set default chip state */
-		st_ll_enable(st_gdata);
 		/* this may take a while to complete
 		 * since it involves BT fw download
 		 */
@@ -553,9 +575,12 @@ long st_register(struct st_proto_s *new_proto)
 			    (test_bit(ST_REG_PENDING, &st_gdata->st_state))) {
 				pr_err(" KIM failure complete callback ");
 				st_reg_complete(st_gdata, err);
+				clear_bit(ST_REG_PENDING, &st_gdata->st_state);
 			}
 			return -EINVAL;
 		}
+
+		spin_lock_irqsave(&st_gdata->lock, flags);
 
 		clear_bit(ST_REG_IN_PROGRESS, &st_gdata->st_state);
 		st_recv = st_int_recv;
@@ -576,10 +601,10 @@ long st_register(struct st_proto_s *new_proto)
 		if (st_gdata->is_registered[new_proto->chnl_id] == true) {
 			pr_err(" proto %d already registered ",
 				   new_proto->chnl_id);
+			spin_unlock_irqrestore(&st_gdata->lock, flags);
 			return -EALREADY;
 		}
 
-		spin_lock_irqsave(&st_gdata->lock, flags);
 		add_channel_to_table(st_gdata, new_proto);
 		st_gdata->protos_registered++;
 		new_proto->write = st_write;
@@ -619,7 +644,7 @@ long st_unregister(struct st_proto_s *proto)
 
 	spin_lock_irqsave(&st_gdata->lock, flags);
 
-	if (st_gdata->list[proto->chnl_id] == NULL) {
+	if (st_gdata->is_registered[proto->chnl_id] == false) {
 		pr_err(" chnl_id %d not registered", proto->chnl_id);
 		spin_unlock_irqrestore(&st_gdata->lock, flags);
 		return -EPROTONOSUPPORT;
@@ -629,9 +654,13 @@ long st_unregister(struct st_proto_s *proto)
 	remove_channel_from_table(st_gdata, proto);
 	spin_unlock_irqrestore(&st_gdata->lock, flags);
 
+	/* paranoid check */
+	if (st_gdata->protos_registered < ST_EMPTY)
+		st_gdata->protos_registered = ST_EMPTY;
+
 	if ((st_gdata->protos_registered == ST_EMPTY) &&
 	    (!test_bit(ST_REG_PENDING, &st_gdata->st_state))) {
-		pr_debug(" all chnl_ids unregistered ");
+		pr_info(" all chnl_ids unregistered ");
 
 		/* stop traffic on tty */
 		if (st_gdata->tty) {
@@ -686,7 +715,7 @@ static int st_tty_open(struct tty_struct *tty)
 {
 	int err = 0;
 	struct st_data_s *st_gdata;
-	pr_debug("%s ", __func__);
+	pr_info("%s ", __func__);
 
 	st_kim_ref(&st_gdata, 0);
 	st_gdata->tty = tty;
@@ -716,7 +745,7 @@ static void st_tty_close(struct tty_struct *tty)
 	unsigned long flags = 0;
 	struct	st_data_s *st_gdata = tty->disc_data;
 
-	pr_debug("%s ", __func__);
+	pr_info("%s ", __func__);
 
 	/* TODO:
 	 * if a protocol has been registered & line discipline
