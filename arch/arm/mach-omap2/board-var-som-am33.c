@@ -180,10 +180,10 @@ void yaoyu_panel_power_ctrl (int state)
 	}
 }
 
-struct da8xx_lcdc_platform_data VAR_LCD_CTW_pdata = {
-	.manu_name		= "Variscite",
+struct da8xx_lcdc_platform_data YAOYU_LCD_DATA = {
+	.manu_name		= "Yaoyu",
 	.controller_data	= &lcd_cfg,
-	.type			= "VAR-WVGA-CTW",
+	.type			= "YM700T-011A",
 	.panel_power_ctrl = yaoyu_panel_power_ctrl,
 };
 
@@ -729,7 +729,7 @@ static void lcdc_init(void)
 {
 	struct da8xx_lcdc_platform_data* plcdc_data;
 
-	plcdc_data = &VAR_LCD_CTW_pdata;
+	plcdc_data = &YAOYU_LCD_DATA;
 	
 	setup_pin_mux(lcdc_pin_mux);
 
@@ -1322,7 +1322,7 @@ static struct omap_musb_board_data musb_board_data = {
 	.instances	= 1,
 };
 
-#define VAR_SOM_TSC_CTW_IRQ_GPIO 	GPIO_TO_PIN(0, 3)
+#define MST3000_TSC_CTW_IRQ_GPIO 	GPIO_TO_PIN(0, 20)
 
 static struct i2c_board_info __initdata var_som_i2c1_boardinfo[] = {
 		{
@@ -1336,16 +1336,16 @@ static struct i2c_board_info __initdata var_som_i2c1_boardinfo[] = {
 				/* bq27421 Gas Gauge */
 				I2C_BOARD_INFO("bq274xx", 0x55),
 		},
-		{
-				.flags = I2C_CLIENT_WAKE,
-				.irq = OMAP_GPIO_IRQ(VAR_SOM_TSC_CTW_IRQ_GPIO),
-		},
 };
 
 static struct i2c_board_info __initdata var_som_i2c0_boardinfo[] = {
 		{
 				/* SSD2543 Touch panel */
 				I2C_BOARD_INFO("ssd2543-ts", 0x48),
+		},
+		{
+				.flags = I2C_CLIENT_WAKE,
+				.irq = OMAP_GPIO_IRQ(MST3000_TSC_CTW_IRQ_GPIO),
 		},
 };
 
