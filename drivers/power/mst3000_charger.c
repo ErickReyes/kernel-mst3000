@@ -30,10 +30,8 @@
 #include <mach/board-am335xevm.h>
 
 //#define CHARGER_DEBUG printk
-#define CHARGER_DEBUG
+#define CHARGER_DEBUG(...)
 
-void get_battery_capacity(int *battery_capacity);
-void get_battery_voltage(int *battery_voltage);
 
 static int ac_present_flag = 0;
 struct allgo_etab_battery_data {
@@ -53,17 +51,6 @@ struct allgo_etab_battery_data {
 
 #define DC_ADAPTER_STATUS 	GPIO_TO_PIN(2, 1)
 #define CHARGE_STATUS 		GPIO_TO_PIN(1, 27)
-
-
-//#ifdef CONFIG_MACH_ALLGO_ETAB
-#define ALLGO_ETAB_BATTERY_READ(data, addr)   NULL
-#define ALLGO_ETAB_BATTERY_WRITE(data, addr, x)   NULL
-//#else
-//#define ALLGO_ETAB_BATTERY_READ(data, addr)   (readl(data->reg_base + addr))
-//#define ALLGO_ETAB_BATTERY_WRITE(data, addr, x)   (writel(x, data->reg_base + addr))
-//#endif
-
-
 
 
 /* temporary variable used between allgo_etab_battery_probe() and allgo_etab_battery_open() */
@@ -120,66 +107,25 @@ static int allgo_etab_battery_get_property(struct power_supply *psy,
 	int battery_voltage = 0;
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-               /*Read the status of gpio pin for battery charging status  */ 
+		/*Read the status of gpio pin for battery charging status  */
 		if(!(gpio_get_value(DC_ADAPTER_STATUS))){
 			charge_status = !(gpio_get_value(CHARGE_STATUS));
-                        CHARGER_DEBUG("read battery charging status %d\n", charge_status);
+			CHARGER_DEBUG("read battery charging status %d\n", charge_status);
 			if(charge_status == 1){
-                                /* Battery charging */
-                                val->intval = 1;
+				/* Battery charging */
+				val->intval = 1;
 			} 
 			else{
-                                /* Battery Full*/
+				/* Battery Full*/
 				val->intval= 4;
 			}
 		}
 		else 
 		{
-                                /* Battery discharging */
-				val->intval=2;
-		}
-
-        	break;
-	case POWER_SUPPLY_PROP_HEALTH:
-                /* Battery health -> Good */
-                val->intval = 1;
-		break;
-	case POWER_SUPPLY_PROP_PRESENT:
-                /* Power supply present */
-                val->intval = 1;
-		break;
-	case POWER_SUPPLY_PROP_TECHNOLOGY:
-		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
-		break;
-	case POWER_SUPPLY_PROP_CAPACITY:
-            /* Battery capacity*/
-		get_battery_capacity(&battery_capacity);
-		if(!(gpio_get_value(DC_ADAPTER_STATUS)))
-		{
-			battery_charge_status = !(gpio_get_value(CHARGE_STATUS));
-			CHARGER_DEBUG("read battery charging status %d\n", battery_charge_status);
-			if(battery_charge_status == 0)
-			{
-				/* Battery Full */
-				CHARGER_DEBUG("\n battery full 1\n");
-				val->intval = 100;
-			}
-			else
-			{
-				val->intval = battery_capacity;
-			}
-		}
-		else
-		{
-			val->intval = battery_capacity;
+			/* Battery discharging */
+			val->intval=2;
 		}
 		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-            /* Power supply voltage */
-            get_battery_voltage(&battery_voltage);
-            val->intval = battery_voltage;
-		break;
-
 	default:
 		ret = -EINVAL;
 		break;
@@ -190,37 +136,11 @@ static int allgo_etab_battery_get_property(struct power_supply *psy,
 
 static enum power_supply_property allgo_etab_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_HEALTH,
-	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_TECHNOLOGY,
-	POWER_SUPPLY_PROP_CAPACITY,
-	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 
 static enum power_supply_property allgo_etab_ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
-
-static irqreturn_t allgo_etab_battery_interrupt(int irq, void *dev_id)
-{
-	unsigned long irq_flags;
-	struct allgo_etab_battery_data *data = dev_id;
-	uint32_t status;
-
-	spin_lock_irqsave(&data->lock, irq_flags);
-
-	/* read status flags, which will clear the interrupt */
-	status = ALLGO_ETAB_BATTERY_READ(data, BATTERY_INT_STATUS);
-	status &= BATTERY_INT_MASK;
-
-	if (status & BATTERY_STATUS_CHANGED)
-		power_supply_changed(&data->battery);
-	if (status & AC_STATUS_CHANGED)
-		power_supply_changed(&data->ac);
-
-	spin_unlock_irqrestore(&data->lock, irq_flags);
-	return status ? IRQ_HANDLED : IRQ_NONE;
-}
 
 /* DC jack interrupt handler (handler for dc jack insert and remove)*/
 static irqreturn_t dc_jack_interrupt(int irq, void *dev_id)
@@ -258,7 +178,6 @@ static void battery_state_timer(unsigned long data)
     /* schedule next call to state machine */
     mod_timer(&battery_data->sm_timer,
             jiffies + msecs_to_jiffies(30000));
-    get_battery_capacity(&battery_capacity);
     battery_data->battery_capacity = battery_capacity;
     power_supply_changed(&battery_data->battery);
 }
@@ -327,11 +246,10 @@ static int allgo_etab_battery_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, data);
 	battery_data = data;
 
-	ALLGO_ETAB_BATTERY_WRITE(data, BATTERY_INT_ENABLE, BATTERY_INT_MASK);
-        mod_timer(&data->sm_timer, jiffies + 1);
- 
-        CHARGER_DEBUG("\n\n %s - exited without error \n\n", __func__);
-        return 0;
+	mod_timer(&data->sm_timer, jiffies + 1);
+
+	CHARGER_DEBUG("\n\n %s - exited without error \n\n", __func__);
+	return 0;
 
 err_battery_failed:
 	power_supply_unregister(&data->ac);
