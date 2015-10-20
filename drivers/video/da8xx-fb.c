@@ -406,16 +406,17 @@ static struct da8xx_panel known_lcd_panels[] = {
 			.name = "YM700T-011A",
 			.width = 800,
 			.height = 480,
-			.hfp = 210,
-			.hbp = 46,
-			.hsw = 28,
-			.vfp = 22,
-			.vbp = 23,
+			.hfp = 129,
+			.hbp = 28,
+			.hsw = 16,
+			.vfp = 32,
+			.vbp = 20,
 			.vsw = 3,
 			.pxl_clk = 33000000,
 			.invert_pxl_clk = 0,
 	},
 };
+
 
 /* Enable the Raster Engine of the LCD Controller */
 static inline void lcd_enable_raster(void)

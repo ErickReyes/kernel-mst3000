@@ -8,12 +8,12 @@
 #define MicroTimeTInterupt	12000000// 83.33Hz - 12,000,000us
 #define FINGERNO		10
 
-#define SCREEN_MAX_X    1664
-#define SCREEN_MAX_Y    1025
+#define SCREEN_MAX_X    800
+#define SCREEN_MAX_Y    480
 
 
 struct ChipSetting ssd253xcfgTable[]={
-		{2, 0x06, 0x19, 0x0F},	// 24 Driving lines, 16 sensing lines
+		{2, 0x06, 0x19, 0x0F},	// 26 Driving lines, 16 sensing lines
 
 		{2, 0x07, 0x00, 0xE0},  // Pin select for drive line #1
 		{2, 0x08, 0x00, 0xE1},	// Pin select for drive line #2
