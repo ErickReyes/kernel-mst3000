@@ -865,13 +865,18 @@ static struct mtd_partition am335x_nand_partitions[] = {
 		.size           = 1 * SZ_128K,
 	},
 	{
-		.name           = "Kernel",
+		.name           = "Ramdisk",
 		.offset         = MTDPART_OFS_APPEND,   /* Offset = 0x280000 */
+		.size           = 4 * SZ_128K,
+	},
+	{
+		.name           = "Kernel",
+		.offset         = MTDPART_OFS_APPEND,   /* Offset = 0x300000 */
 		.size           = 40 * SZ_128K,
 	},
 	{
 		.name           = "File System",
-		.offset         = MTDPART_OFS_APPEND,   /* Offset = 0x780000 */
+		.offset         = MTDPART_OFS_APPEND,   /* Offset = 0x800000 */
 		.size           = MTDPART_SIZ_FULL,
 	},
 };
