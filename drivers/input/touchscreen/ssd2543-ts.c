@@ -70,6 +70,45 @@ static irqreturn_t ssd253x_ts_isr(int irq, void *dev_id);
 static struct workqueue_struct *ssd253x_wq;
 
 
+// Workaround for non-linearity in Yaoyu touch panel input
+static int fix_yaoyu_fuckup_table[33] = {
+		0,  // Offset = 0
+		16,  // Offset = -16
+		32,  // Offset = -32
+		64,  // Offset = -32
+		96,  // Offset = -32
+		128,  // Offset = -32
+		174,  // Offset = -16
+		224,  // Offset = 0
+		256,  // Offset = 0
+		288,  // Offset = 0
+		320,  // Offset = 0
+		352,  // Offset = 0
+		384,  // Offset = 0
+		416,  // Offset = 0
+		448,  // Offset = 0
+		480,  // Offset = 0
+		512,  // Offset = 0
+		544,  // Offset = 0
+		576,  // Offset = 0
+		608,  // Offset = 0
+		650,  // Offset = 10
+		692,  // Offset = 20
+		735,  // Offset = 31
+		768,  // Offset = 32
+		800,  // Offset = 32
+		848,  // Offset = 48
+		880,  // Offset = 48
+		912,  // Offset = 48
+		946,  // Offset = 50
+		970,  // Offset = 42
+		1000,  // Offset = 40
+		1024,  // Offset = 32
+		1024,  // Offset = 0
+
+};
+
+
 struct ssl_ts_priv {
 	struct i2c_client *client;
 	struct input_dev *input;
@@ -204,6 +243,20 @@ void deviceSuspend(struct i2c_client *client)
 }
 
 
+static int _fix_fuckup(int pos)
+{
+	int p1, p2, p3;
+	if (pos > 1024)
+		pos = 1023;
+	if (pos < 0)
+		pos = 0;
+
+	p1 = fix_yaoyu_fuckup_table[pos>>5];
+	p2 = fix_yaoyu_fuckup_table[(pos >> 5) + 1];
+	p3 = pos & 0x1F;
+	return p1 + ((p2-p1) * p3) / 32;
+}
+
 static void ssd253x_ts_work(struct work_struct *work)
 {
 	int i;
@@ -273,12 +326,12 @@ static void ssd253x_ts_work(struct work_struct *work)
 	for(i=0;i<ssl_priv->FingerNo;i++)
 	{
 		xpos=FingerX[i];
-		ypos=FingerY[i];
+		ypos=_fix_fuckup(FingerY[i]);
 		width=FingerP[i];
 
 		if(xpos!=0xFFF)
 		{
-
+			printk("Fix Yaoyu fuckup: %d -> %d\n", FingerY[i], ypos);
 			input_mt_slot(ssl_priv->input, i);
 			input_report_abs(ssl_priv->input, ABS_MT_TRACKING_ID, i);
 			input_report_abs(ssl_priv->input, ABS_MT_POSITION_X, xpos);
@@ -294,7 +347,7 @@ static void ssd253x_ts_work(struct work_struct *work)
 		}
 		if(xpos!=0xfff&&ypos!=0xfff)
 		{
-		 ;// printk("sd253x_ts_work: X = %d , Y = %d, W = %d\n",xpos,ypos,width);
+		 printk("sd253x_ts_work: X = %d , Y = %d, W = %d\n",xpos,ypos,width);
 		}
 		ssl_priv->FingerX[i]=FingerX[i];
 		ssl_priv->FingerY[i]=FingerY[i];
