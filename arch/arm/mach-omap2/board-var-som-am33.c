@@ -73,6 +73,7 @@
 #define VAR_LCD_UTM     0
 #define VAR_LCD_CTW6120 1
 
+#define PANEL_POWER_DELAY	100
 
 
 
@@ -136,18 +137,23 @@ void yaoyu_panel_power_ctrl (int state)
 		/*LCD Power on Sequence */
 		gpio_request(LCD_DVDD_EN, "lcd_dvdd_en");
 		gpio_direction_output(LCD_DVDD_EN, 1);
+		mdelay(PANEL_POWER_DELAY);
 
 		gpio_request(LCD_EN, "lcd_en");
 		gpio_direction_output(LCD_EN, 1);
+		mdelay(PANEL_POWER_DELAY);
 
 		gpio_request(LCD_AVDD_EN, "lcd_avdd_en");
 		gpio_direction_output(LCD_AVDD_EN, 1);
+		mdelay(PANEL_POWER_DELAY);
 
 		gpio_request(LCD_VGL_EN, "lcd_vgl_en");
 		gpio_direction_output(LCD_VGL_EN, 1);
+		mdelay(PANEL_POWER_DELAY);
 
 		gpio_request(LCD_VGH_EN, "lcd_vgh_en");
 		gpio_direction_output(LCD_VGH_EN, 1);
+		mdelay(PANEL_POWER_DELAY);
 
 		gpio_request(LCD_RESET, "lcd_reset");
 		gpio_direction_output(LCD_RESET, 1);
@@ -1322,7 +1328,7 @@ static struct omap_musb_board_data musb_board_data = {
 	 * mode[0:3] = USB0PORT's mode
 	 * mode[4:7] = USB1PORT's mode
 	 */
-	.mode           = (MUSB_OTG << 4) | MUSB_HOST,
+	.mode           = (MUSB_PERIPHERAL << 4) | MUSB_HOST,
 	.power		= 500,
 	.instances	= 1,
 };
@@ -1341,6 +1347,10 @@ static struct i2c_board_info __initdata var_som_i2c1_boardinfo[] = {
 				/* bq27421 Gas Gauge */
 				I2C_BOARD_INFO("bq274xx", 0x55),
 		},
+		{
+				/* External RTC on main board */
+				I2C_BOARD_INFO("rx8581", 0x51),
+		},
 };
 
 static struct i2c_board_info __initdata var_som_i2c0_boardinfo[] = {
@@ -1348,10 +1358,10 @@ static struct i2c_board_info __initdata var_som_i2c0_boardinfo[] = {
 				/* SSD2543 Touch panel */
 				I2C_BOARD_INFO("ssd2543-ts", 0x48),
 		},
-		{
-				.flags = I2C_CLIENT_WAKE,
-				.irq = OMAP_GPIO_IRQ(MST3000_TSC_CTW_IRQ_GPIO),
-		},
+//		{
+//				.flags = I2C_CLIENT_WAKE,
+//				.irq = OMAP_GPIO_IRQ(MST3000_TSC_CTW_IRQ_GPIO),
+//		},
 };
 
 static void i2c1_init(void)
@@ -1370,6 +1380,23 @@ static void i2c0_init(void)
 	omap_register_i2c_bus(1, 100, var_som_i2c0_boardinfo,
 			ARRAY_SIZE(var_som_i2c0_boardinfo));
 	return;
+}
+
+static struct spi_board_info mst3000_spi1_slave_info[] = {
+		{
+				.modalias = "spidev",
+				.irq = -1,
+				.max_speed_hz = 2000000,
+				.bus_num = 2,
+				.chip_select = 0,
+		}
+};
+
+static void spi1_init(void)
+{
+	spi_register_board_info(mst3000_spi1_slave_info,
+			ARRAY_SIZE(mst3000_spi1_slave_info));
+
 }
 
 /* Enable clkout1 */
@@ -1460,6 +1487,8 @@ static void setup_mst3000(void)
 
 	gpio_request(TOUCH_RESET, "touch_reset");
 	gpio_direction_output(TOUCH_RESET, 1);
+
+	spi1_init();
 
 }
 
