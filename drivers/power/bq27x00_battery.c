@@ -451,8 +451,8 @@ static struct dm_reg bq274xx_dm_regs[] = {
 	{82, 5, 1, 0x81},	/* Load Select */
 	{82, 10, 2, 2500},	/* Design Capacity */
 	{82, 12, 2, 9250},	/* Design Energy */
-	{82, 16, 2, 3250},	/* Terminate Voltage */
-	{82, 27, 2, 220},	/* Taper rate */
+	{82, 16, 2, 2900},	/* Terminate Voltage */
+	{82, 27, 2, 200},	/* Taper rate */
 };
 
 static struct dm_reg bq276xx_dm_regs[] = {
