@@ -70,6 +70,8 @@
 #include "devices.h"
 #include "hsmmc.h"
 
+#include <mst3000_charger.h>
+
 #define VAR_LCD_UTM     0
 #define VAR_LCD_CTW6120 1
 
@@ -543,19 +545,19 @@ static void mst3000_keys_init(int evm_id, int profile)
 		pr_err("failed to register power key device\n");
 }
 
-static struct platform_device mst3000_battery_charger = {
-        .name   = "mst3000_charger",
-        .id     = -1,
-};
-
-static void mst3000_battery_charger_init(int evm_id, int profile)
-{
-       int err;
- 
-       err = platform_device_register(&mst3000_battery_charger);
-       if (err)
-               pr_err("failed to register battery charger\n");
-}
+//static struct platform_device mst3000_battery_charger = {
+//        .name   = "mst3000_charger",
+//        .id     = -1,
+//};
+//
+//static void mst3000_battery_charger_init(int evm_id, int profile)
+//{
+//       int err;
+//
+//       err = platform_device_register(&mst3000_battery_charger);
+//       if (err)
+//               pr_err("failed to register battery charger\n");
+//}
 
 
 
@@ -1335,6 +1337,12 @@ static struct omap_musb_board_data musb_board_data = {
 
 #define MST3000_TSC_CTW_IRQ_GPIO 	GPIO_TO_PIN(0, 20)
 
+
+struct mst3000_charger_pdata charger_platform_data = {
+		.pg_pin = GPIO_TO_PIN(2, 1),
+		.ce_pin = GPIO_TO_PIN(1, 27),
+};
+
 static struct i2c_board_info __initdata var_som_i2c1_boardinfo[] = {
 		{
 				I2C_BOARD_INFO("tps65910", TPS65910_I2C_ID1),
@@ -1346,6 +1354,11 @@ static struct i2c_board_info __initdata var_som_i2c1_boardinfo[] = {
 		{
 				/* bq27421 Gas Gauge */
 				I2C_BOARD_INFO("bq274xx", 0x55),
+		},
+		{
+				/* bq24196 battery charger */
+				I2C_BOARD_INFO("bq24196", 0x6b),
+				.platform_data = &charger_platform_data,
 		},
 		{
 				/* External RTC on main board */
@@ -1478,7 +1491,7 @@ static void setup_mst3000(void)
 	setup_pin_mux(mst3000_battery_pinmux);
 	setup_pin_mux(mst3000_subcpu_pinmux);
 	mst3000_keys_init(0, 0);
-    mst3000_battery_charger_init(0, 0);
+    //mst3000_battery_charger_init(0, 0);
     
     bat_adc_init();
 
