@@ -331,7 +331,7 @@ static void ssd253x_ts_work(struct work_struct *work)
 
 		if(xpos!=0xFFF)
 		{
-			printk("Fix Yaoyu fuckup: %d -> %d\n", FingerY[i], ypos);
+			//printk("Fix Yaoyu fuckup: %d -> %d\n", FingerY[i], ypos);
 			input_mt_slot(ssl_priv->input, i);
 			input_report_abs(ssl_priv->input, ABS_MT_TRACKING_ID, i);
 			input_report_abs(ssl_priv->input, ABS_MT_POSITION_X, xpos);
@@ -345,10 +345,10 @@ static void ssd253x_ts_work(struct work_struct *work)
 			input_report_abs(ssl_priv->input, ABS_MT_TRACKING_ID, -1);
 
 		}
-		if(xpos!=0xfff&&ypos!=0xfff)
-		{
-		 printk("sd253x_ts_work: X = %d , Y = %d, W = %d\n",xpos,ypos,width);
-		}
+//		if(xpos!=0xfff&&ypos!=0xfff)
+//		{
+//		 printk("sd253x_ts_work: X = %d , Y = %d, W = %d\n",xpos,ypos,width);
+//		}
 		ssl_priv->FingerX[i]=FingerX[i];
 		ssl_priv->FingerY[i]=FingerY[i];
 		ssl_priv->FingerP[i]=width;

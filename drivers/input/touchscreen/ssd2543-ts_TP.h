@@ -1,7 +1,7 @@
 
 
 
-#define ENABLE_INT		0	// 0->Polling, 1->Interupt, 2->Hybrid
+#define ENABLE_INT		0	// 0->Polling, 1->Interrupt, 2->Hybrid
 #define EdgeDisable		1	// if Edge Disable, set it to 1, else reset to 0
 #define RunningAverageMode	2	//{0,8},{5,3},{6,2},{7,1}
 #define RunningAverageDist	4	// Threshold Between two consecutive points

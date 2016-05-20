@@ -15,5 +15,7 @@ struct mst3000_charger_pdata {
 	int ce_pin; // Charger enable pin - output to enable charging
 };
 
+void mst3000_charger_poweroff(void);
+
 
 #endif /* DRIVERS_POWER_MST3000_CHARGER_H_ */
