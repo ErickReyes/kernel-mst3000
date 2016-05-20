@@ -1507,8 +1507,8 @@ static void setup_mst3000(void)
 
 static void mst3000_poweroff(void)
 {
+	mst3000_charger_poweroff();
 	gpio_direction_output(PWR_CNTRL, 0);
-
 }
 
 static void __init var_am335x_som_init(void)

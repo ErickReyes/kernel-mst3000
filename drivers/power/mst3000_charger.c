@@ -152,7 +152,8 @@ static int mst3000_charger_write_i2c(struct i2c_client *client, u8 reg, int valu
 
 static void mst3000_charger_update_boost_control(struct i2c_client *client, int online)
 {
-	int value = online?0x11:0x31;
+	int value = online?0x51:0x71;
+	CHARGER_DEBUG("Update boost regulator control: %d\n", online);
 	mst3000_charger_write_i2c(client, REG_POC, value, true);
 }
 
@@ -373,6 +374,12 @@ static int mst3000_charger_remove(struct platform_device *pdev)
 	return 0;
 }
 
+void mst3000_charger_poweroff(void)
+{
+	// Disable boost converter to allow charging when powered off
+	mst3000_charger_write_i2c(battery_data->client, 0x01, 0x11, true);
+}
+
 
 static const struct i2c_device_id mst3000_id[] = {
 	{ "bq24196", 0 },
@@ -388,6 +395,7 @@ static struct i2c_driver mst3000_charger_driver = {
 	.remove = mst3000_charger_remove,
 	.id_table = mst3000_id,
 };
+
 
 
 static inline int __init mst3000_charger_i2c_init(void)
