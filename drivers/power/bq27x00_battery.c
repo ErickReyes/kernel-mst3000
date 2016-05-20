@@ -447,11 +447,11 @@ static __initdata enum power_supply_property bq276xx_battery_props[] = {
  * Customize these values and, if necessary, add more based on system needs.
  */
 static struct dm_reg bq274xx_dm_regs[] = {
-	{82, 0, 2, 1000},	/* Qmax */
+	{82, 0, 2, 0x2000},	/* Qmax */
 	{82, 5, 1, 0x81},	/* Load Select */
 	{82, 10, 2, 2500},	/* Design Capacity */
 	{82, 12, 2, 9250},	/* Design Energy */
-	{82, 16, 2, 2900},	/* Terminate Voltage */
+	{82, 16, 2, 3000},	/* Terminate Voltage */
 	{82, 27, 2, 200},	/* Taper rate */
 };
 
