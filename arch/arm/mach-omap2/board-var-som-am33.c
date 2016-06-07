@@ -657,7 +657,7 @@ static struct platform_pwm_backlight_data am335x_backlight_data = {
 	.ch             = 0,
 	.max_brightness = 100,
 	.dft_brightness = 100,
-	.pwm_period_ns  = 4000000,
+	.pwm_period_ns  = 31250,
 };
 
 static struct platform_device am335x_backlight = {
@@ -673,7 +673,7 @@ static struct pwmss_platform_data pwm_pdata = {
 };
 
 /* setup haptics */
-#define HAPTICS_MAX_FREQ 250
+#define HAPTICS_MAX_FREQ 32000
 static void haptics_init(void)
 {
 	setup_pin_mux(haptics_pin_mux);
@@ -683,7 +683,7 @@ static void haptics_init(void)
 
 static int __init pwm_backlight_init(void)
 {
-	am335x_backlight_data.lth_brightness = 59;
+	//am335x_backlight_data.lth_brightness = 59;
 	platform_device_register(&am335x_backlight);
 
 	return 0;
